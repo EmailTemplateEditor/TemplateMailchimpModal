@@ -9,10 +9,7 @@ import { FaDesktop } from 'react-icons/fa';
 import { MdPhoneAndroid } from 'react-icons/md';
 import { MdAddPhotoAlternate } from 'react-icons/md';
 import { FiTrash2 } from "react-icons/fi"; // Import icons
-
-
-
-
+// import { FaUndo, FaRedo } from "react-icons/fa";
 
 const App = () => {
   const [isLoading, setIsLoading] = useState(false); // State for loader
@@ -23,15 +20,24 @@ const App = () => {
   const [emailData, setEmailData] = useState({ recipient: '', subject: ''});
   const [selectedIndex, setSelectedIndex] = useState(null);  // Track selected content index
   const dragIndex = useRef(null);
+  const [undoStack, setUndoStack] = useState([]);
+  const [redoStack, setRedoStack] = useState([]);
+    const [activeTab, setActiveTab] = useState("content");
+
+
 
   // Add new text
   const addText = () => {
+         saveToUndoStack(); // Save the current state before deleting
+
     setPreviewContent([
       ...previewContent,
       { type: 'para', content: 'Paragraph', style: { fontSize: '16px', textAlign: 'center', color: '#000000',padding:'10px 5px' } },
     ]);
   };
     const addHeading = () => {
+           saveToUndoStack(); // Save the current state before deleting
+
     setPreviewContent([
       ...previewContent,
       { type: 'head', content: 'Heading', style: { fontSize: '25px', textAlign: 'center', color: '#000000',padding:'10px 5px',fontWeight:'bold' } },
@@ -90,6 +96,7 @@ const App = () => {
     fileInput.click();
   };
   const addButton = () => {
+         saveToUndoStack(); // Save the current state before deleting
     setPreviewContent([
       ...previewContent,
       {
@@ -107,10 +114,45 @@ const App = () => {
       },
     ]);
   };
+const addLayout1 = () => {
+  setPreviewContent([
+    ...previewContent,
+    {
+      type: 'layout1',
+      content: '',
+      style: { border: '1px solid #000', minHeight: '100px', textAlign: 'center', padding: '10px' },
+    },
+  ]);
+};
+
+const addLayout2 = () => {
+  setPreviewContent([
+    ...previewContent,
+    {
+      type: 'layout2',
+      content: '',
+      style: { display: 'flex', justifyContent: 'space-between', gap: '10px' },
+      children: [
+        {
+          type: 'box',
+          content: '',
+          style: { flex: '1', border: '1px solid #000', minHeight: '100px', textAlign: 'center', padding: '10px' },
+        },
+        {
+          type: 'box',
+          content: '',
+          style: { flex: '1', border: '1px solid #000', minHeight: '100px', textAlign: 'center', padding: '10px' },
+        },
+      ],
+    },
+  ]);
+};
+
 
   // Handle content editing
 
   const updateContent = (index, newContent) => {
+       saveToUndoStack(); // Save the current state before deleting
   const updated = [...previewContent];
   updated[index] = { ...updated[index], ...newContent };
   setPreviewContent(updated);
@@ -122,6 +164,7 @@ const App = () => {
 
 //delete
  const deleteContent = (index) => {
+     saveToUndoStack(); // Save the current state before deleting
    const updated = previewContent.filter((_, i) => i !== index);
    setPreviewContent(updated);
    if (selectedIndex === index) {
@@ -130,6 +173,29 @@ const App = () => {
      setSelectedIndex(selectedIndex - 1); // Adjust index
    }
  };
+ const saveToUndoStack = () => {
+   setUndoStack([...undoStack, [...previewContent]]);
+   setRedoStack([]); // Clear redo stack whenever a new action is performed
+ };
+
+ // Undo action
+ const undo = () => {
+   if (undoStack.length > 0) {
+     const previousState = undoStack.pop(); // Pop the last state
+     setRedoStack([...redoStack, [...previewContent]]); // Save current state to redo stack
+     setPreviewContent(previousState); // Revert to the previous state
+   }
+ };
+
+ // Redo action
+ const redo = () => {
+   if (redoStack.length > 0) {
+     const nextState = redoStack.pop(); // Pop the redo state
+     setUndoStack([...undoStack, [...previewContent]]); // Save current state to undo stack
+     setPreviewContent(nextState); // Reapply the redo state
+   }
+ };
+
    
   // // Save to DB
   // const saveToDb = () => {
@@ -187,6 +253,22 @@ const App = () => {
       dragIndex.current = null;
     }
   };
+ 
+  const handleEditorDrop = (e) => {
+    e.preventDefault();
+    const type = dragIndex.current;
+    if (type === 'para') addText();
+    else if (type === 'head') addHeading();
+    else if (type === 'image') addImage();
+    else if (type === 'logo') addLogo();
+    else if (type === 'button') addButton();
+    dragIndex.current = null; // Reset the type after drop
+  };
+
+  const handleDragOver = (e) => {
+    e.preventDefault(); // Allow drop by preventing default
+  };
+
 
 const handleLinkClick = (e, index) => {
   e.preventDefault(); // Prevent default navigation
@@ -197,25 +279,140 @@ const handleLinkClick = (e, index) => {
 };
   return (
     <div>
-    <nav className="navbar">
-      <div><h3>Template Builder</h3></div>
-      <div>
-          <button onClick={() => setIsMobileView(false)} className="navbar-button"><FaDesktop/> Desktop</button>
-          <button onClick={() => setIsMobileView(true)} className="navbar-button"><MdPhoneAndroid/> Mobile</button>
-          <button onClick={() => setModalOpen(true)} className="navbar-button"><MdSend/>Test Mail</button>
-          </div>
-        </nav>
+ <nav className="navbar">
+        <div>
+          <h3>Template Builder</h3>
+        </div>
+        <div>
+    <button
+  onClick={undo}
+  disabled={undoStack.length === 0}
+  className="undo-btn"
+  data-tooltip="Undo" // Custom tooltip using data attribute
+>
+  <i className="fas fa-undo-alt"></i>
+  
+</button>
+
+<button
+  onClick={redo}
+  disabled={redoStack.length === 0}
+  className="redo-btn"
+  data-tooltip="Redo" // Custom tooltip using data attribute
+>
+  <i className="fas fa-redo-alt"></i>
+</button>
+
+          <button
+            onClick={() => setIsMobileView(false)}
+            className="navbar-button-Desktop"
+          >
+            <span className="Nav-icons">
+              <FaDesktop />
+            </span>{" "}
+            <span className="nav-names">Desktop</span>
+          </button>
+          <button
+            onClick={() => setIsMobileView(true)}
+            className="navbar-button-Desktop"
+          >
+            <span className="Nav-icons">
+              <MdPhoneAndroid />
+            </span>{" "}
+            <span className="nav-names">Mobile</span>
+          </button>
+          <button onClick={() => setModalOpen(true)} className="navbar-button">
+            <span className="Nav-icons">
+              <MdSend />
+            </span>{" "}
+            <span className="nav-names">Test Mail</span>
+          </button>
+        </div>
+      </nav>
+
     <div className="app-container">
       {/* Left Editor */}
       <div className="editor">
-        <div className="edit-btn">
-        <button onClick={addLogo} className="editor-button"><MdAddPhotoAlternate/> Logo</button>  
-        <button onClick={addHeading} className="editor-button"><FaHeading/> Heading</button>
-        <button onClick={addText} className="editor-button"><FaParagraph/> Paragraph</button>
-        <button onClick={addImage} className="editor-button"><FaImage/> Image</button>
-        <button onClick={addButton} className="editor-button"><FaPlusSquare/> Button</button>
-       
-         </div>
+        {/* Tabs */}
+      <div className="tabs">
+        <button
+          className={activeTab === "content" ? "tab active" : "tab"}
+          onClick={() => setActiveTab("content")}
+        >
+          Content
+        </button>
+        <button
+          className={activeTab === "layout" ? "tab active" : "tab"}
+          onClick={() => setActiveTab("layout")}
+        >
+          Layouts
+        </button>
+      </div>
+
+       <div className="edit-btn">
+      
+      {/* Tab Content */}
+      {activeTab === "content" && (
+        <div className="content-tab">
+          <button
+            onClick={addLogo}
+            className="editor-button"
+            draggable
+            onDragStart={(e) => handleDragStart("logo")}
+          >
+            <MdAddPhotoAlternate /> Logo
+          </button>
+          <button
+            onClick={addHeading}
+            className="editor-button"
+            draggable
+            onDragStart={(e) => handleDragStart("head")}
+          >
+            <FaHeading /> Heading
+          </button>
+          <button
+            onClick={addText}
+            className="editor-button"
+            draggable
+            onDragStart={(e) => handleDragStart("para")}
+          >
+            <FaParagraph /> Paragraph
+          </button>
+          <button
+            onClick={addImage}
+            className="editor-button"
+            draggable
+            onDragStart={(e) => handleDragStart("image")}
+          >
+            <FaImage /> Image
+          </button>
+          <button
+            onClick={addButton}
+            className="editor-button"
+            draggable
+            onDragStart={(e) => handleDragStart("button")}
+          >
+            <FaPlusSquare /> Button
+          </button>
+        </div>
+      )}
+
+      {activeTab === "layout" && (
+        <div className="layout-tab">
+          <button onClick={addLayout1} className="editor-button">
+            <span className="undo"></span>1
+          </button>
+          <button onClick={addLayout2} className="editor-button">
+            <div id="box-btn">
+              <span className="undo"></span>
+              <span className="undo"></span>
+            </div>
+            2
+          </button>
+        </div>
+      )}
+    </div>
+  
          <div className ="editor-bg">Template Background
         <input
           type="color"
@@ -454,9 +651,6 @@ const handleLinkClick = (e, index) => {
     </div>
   </div>
 )}
-
-
-
       </div>
 
       {/* Right Preview */}
@@ -465,7 +659,9 @@ const handleLinkClick = (e, index) => {
 
         <div
           className={`template-preview ${isMobileView ? 'mobile-view' : ''}`}
-          style={{ backgroundColor: bgColor }}>
+          style={{ backgroundColor: bgColor }}
+           onDrop={handleEditorDrop}
+          onDragOver={handleDragOver}>
           <div className="preview-card" style={{ backgroundColor: bgColor }}>
 {previewContent.map((item, index) => {
   if (!item || !item.type) {
@@ -512,6 +708,29 @@ const handleLinkClick = (e, index) => {
         />
         </div>
       )}
+
+
+    {item.type === 'layout1' && (
+      
+        <div key={index} style={item.style} onClick={() => handleItemClick(index)} className={selectedIndex === index ? 'selected' : ''}>
+          <p>Drag content here</p>
+        </div>
+      )
+    }
+
+    {item.type === 'layout2' &&( 
+      
+        <div key={index} style={item.style} onClick={() => handleItemClick(index)} className={selectedIndex === index ? 'selected' : ''}>
+          {item.children.map((box, boxIndex) => (
+            <div key={boxIndex} style={box.style}>
+              <p>Drag content here</p>
+            </div>
+          ))}
+        </div>
+      )
+    }
+
+
        {item.type === 'logo' && (
         <div>
         <img
